@@ -1,189 +1,147 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_fortune_wheel/flutter_fortune_wheel.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(ExampleApp());
 }
 
-class MyApp extends StatelessWidget {
+class ExampleApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      home: Scaffold(
-        appBar: AppBar(
-          title: Text('Fortune Wheel'),
-        ),
-        body: Center(
-          child: FortuneWheel(),
-        ),
-      ),
+      title: 'Fortune Wheel Example',
+      home: ExamplePage(),
     );
   }
 }
 
-class FortuneWheel extends StatefulWidget {
+class ExamplePage extends StatefulWidget {
   @override
-  _FortuneWheelState createState() => _FortuneWheelState();
+  _ExamplePageState createState() => _ExamplePageState();
 }
 
-class _FortuneWheelState extends State<FortuneWheel> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  final List<int> values = [100, 200, 300, 55, 500];
-  double angle = 0.0;
-  bool isSpinning = false;
+class _ExamplePageState extends State<ExamplePage> {
+  StreamController<int> selected = StreamController<int>();
+  List<String> items = [
+    '₹0',
+    '₹800',
+    '₹300',
+    '₹10',
+    '₹100',
+    '₹500',
+    '₹1000',
+  ];
+  int selectedIndex = 0;
+  bool spinning = false;
+  int totalReward = 0;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: Duration(seconds: 3),
+    // Spin the wheel automatically when the app is opened
+  }
+
+  @override
+  void dispose() {
+    selected.close();
+    super.dispose();
+  }
+
+  void spinWheel() {
+    if (!spinning) {
+      setState(() {
+        spinning = true;
+        selectedIndex = Fortune.randomInt(0, items.length);
+        selected.add(selectedIndex);
+      });
+
+      // Simulate spinning time
+      Future.delayed(Duration(seconds: 3), () {
+        setState(() {
+          spinning = false;
+          totalReward += int.parse(items[selectedIndex].substring(1)); // Update total reward
+        });
+        // Show the result after spinning stops
+        showResult();
+      });
+    }
+  }
+
+  void showResult() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('You Win!'),
+          content: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Selected: ${items[selectedIndex]}'),
+              Text('Total Reward: ₹$totalReward'),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                spinWheel();
+              },
+              child: Text('Spin Again'),
+            ),
+          ],
+        );
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Stack(
-          alignment: Alignment.center,
-          children: [
-            Container(
-              width: 300,
-              height: 300,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    Colors.red,
-                    Colors.blue,
-                    Colors.green,
-                    Colors.yellow,
-                    Colors.purple,
-                  ],
-                ),
-              ),
-              child: AnimatedBuilder(
-                animation: _controller,
-                builder: (context, child) {
-                  return Transform.rotate(
-                    angle: angle,
-                    child: child,
-                  );
-                },
-                child: CustomPaint(
-                  painter: WheelPainter(values.length),
-                ),
-              ),
-            ),
-            Container(
-              margin: EdgeInsets.only(top: 20),
-              child: Icon(
-                Icons.arrow_upward,
-                size: 30,
-                color: Colors.red,
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Flutter Fortune Wheel'),
+      ),
+      body: Column(
+        children: [
+          SizedBox(height: 16),
+          Expanded(
+            child: GestureDetector(
+              onTap: spinWheel,
+              child: FortuneWheel(
+                selected: selected.stream,
+                indicators: <FortuneIndicator>[
+                  FortuneIndicator(
+                    alignment: Alignment.topCenter,
+                    child: TriangleIndicator(
+                      color: Colors.yellowAccent,
+                    ),
+                  ),
+                ],
+                items: [
+                  for (var it in items)
+                    FortuneItem(
+                      child: Text(it),
+                      style: FortuneItemStyle(
+                        color: Colors.redAccent,
+                        borderColor: Colors.blueGrey,
+                        borderWidth: 3,
+                      ),
+                    ),
+                ],
               ),
             ),
-          ],
-        ),
-        SizedBox(height: 20),
-        ElevatedButton(
-          onPressed: () {
-            if (!isSpinning) {
-              startSpinning();
-            }
-          },
-          child: Text('Spin the Wheel'),
-        ),
-        SizedBox(height: 20),
-        Text('Result: ${getResult()}'),
-      ],
+          ),
+          SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () {
+              spinWheel();
+            },
+            child: Text('Spin Again'),
+          ),
+        ],
+      ),
     );
   }
 
-  void startSpinning() {
-    isSpinning = true;
-    _controller.forward(from: 0.0);
-    spinWheel();
-
-    // Spin for 3 seconds, then stop
-    Timer(Duration(seconds: 3), () {
-      stopSpinning();
-    });
-  }
-
-  void stopSpinning() {
-    isSpinning = false;
-    setState(() {
-      angle = Random().nextDouble() * 2 * pi;
-    });
-  }
-
-  String getResult() {
-    int index = ((angle / (2 * pi)) * values.length).floor() % values.length;
-    return values[index].toString();
-  }
-
-  void spinWheel() {
-    setState(() {
-      angle += 0.1; // Adjust the speed of spinning
-    });
-
-    if (isSpinning) {
-      Future.delayed(Duration(milliseconds: 16), spinWheel);
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-}
-
-class WheelPainter extends CustomPainter {
-  final int numOfSections;
-
-  WheelPainter(this.numOfSections);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    double sectionAngle = 2 * pi / numOfSections;
-    double startAngle = 0;
-
-    for (int i = 0; i < numOfSections; i++) {
-      Paint paint = Paint()
-        ..color = getColor(i)
-        ..style = PaintingStyle.fill;
-
-      canvas.drawArc(
-        Rect.fromCircle(center: Offset(size.width / 2, size.height / 2), radius: size.width / 2),
-        startAngle,
-        sectionAngle,
-        true,
-        paint,
-      );
-
-      startAngle += sectionAngle;
-    }
-  }
-
-  Color getColor(int index) {
-    List<Color> colors = [
-      Colors.red,
-      Colors.blue,
-      Colors.green,
-      Colors.yellow,
-      Colors.purple,
-    ];
-
-    return colors[index % colors.length];
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return false;
-  }
 }
